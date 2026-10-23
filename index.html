@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador de Soldagem MIG/MAG</title>
+<style>
+:root{color-scheme:dark;--bg:#1a2027;--pn:#232b34;--ln:#36414d;--tx:#e9edf1;--mu:#9fabb8;--ac:#ff9a2e;--ok:#4cc38a;--wn:#f2c14e;--bd:#f0645f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between;padding:16px 16px 0;max-width:1280px;margin:0 auto}
+h1{margin:0;font-size:1.5rem;font-weight:700;letter-spacing:-.01em}h1 b{color:var(--ac)}
+h2{margin:18px 0 8px;font-size:1rem;font-weight:600}
+#proc{color:var(--mu);font-size:.9rem}
+main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:16px;max-width:1280px;margin:0 auto}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+canvas{width:100%;height:auto;display:block;border-radius:10px;background:#0b0e12}
+#sec{max-width:340px;border:1px solid var(--ln)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+button{font:inherit;color:var(--tx);background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:9px 14px;cursor:pointer}
+button:hover{border-color:var(--mu)}button.pri{background:var(--ac);border-color:var(--ac);color:#1a1208;font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #8cc2ff;outline-offset:2px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.cd{background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:8px 10px}
+.cd span{display:block;color:var(--mu);font-size:.8rem}.cd b{font-size:1.15rem;font-weight:600}
+#dg{margin-top:12px;display:grid;gap:6px}
+#dg div{padding:8px 10px;border-radius:8px;background:var(--pn);border-left:4px solid var(--mu)}
+#dg .ok{border-color:var(--ok)}#dg .wn{border-color:var(--wn)}#dg .bd{border-color:var(--bd)}
+aside{background:var(--pn);border:1px solid var(--ln);border-radius:12px;padding:4px 14px 16px;align-self:start}
+aside h2:first-child{margin-top:12px}
+.sl{margin:10px 0}.sl div{display:flex;justify-content:space-between;color:var(--mu);font-size:.9rem}.sl em{font-style:normal;color:var(--tx);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--ac)}
+label.s{display:block;margin:10px 0;color:var(--mu);font-size:.9rem}
+select{display:block;width:100%;margin-top:4px;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--ln);border-radius:8px;padding:8px}
+small{display:block;margin-top:14px;color:var(--mu);font-size:.8rem}
+#sw{position:relative}
+#v3w{position:absolute;top:8px;right:8px;width:32%;min-width:230px;background:rgba(11,14,18,.84);border:1px solid var(--ln);border-radius:10px;padding:6px}
+#v3w canvas{border-radius:6px;background:transparent;touch-action:none;cursor:grab}
+.vb{display:flex;gap:4px;margin-bottom:4px;flex-wrap:wrap}
+.vb button{padding:3px 8px;font-size:.78rem;border-radius:6px}
+.vb button.on{background:var(--ac);border-color:var(--ac);color:#1a1208}
+@media(max-width:600px){#v3w{width:56%;min-width:0}#v3w.big{width:94%}}
+#v3w.big{width:66%}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style></head><body>
+<header><h1>Simulador de soldagem <b>MIG/MAG</b></h1><span id="proc"></span></header>
+<main>
+<section>
+<label class="s" style="margin:0">Peça a soldar<select id="pc"></select></label><p id="pd" style="color:var(--mu);font-size:.85rem;margin:4px 0 10px"></p>
+<canvas id="sim" width="900" height="520" aria-label="Simulação do processo de soldagem"></canvas>
+<div class="bar"><button id="go" class="pri">Soldar</button><button id="rs">Reiniciar</button><button id="id">Ajuste ideal</button></div>
+<div class="cards" id="cards"></div>
+<div id="dg" aria-live="polite"></div>
+</section>
+<aside>
+<h2>Parâmetros</h2><div id="ctl"></div>
+<label class="s">Gás de proteção<select id="g"><option value="mix">Ar + 18% CO₂ (MAG)</option><option value="co2">CO₂ 100% (MAG)</option><option value="ar">Argônio 100% (MIG)</option></select></label>
+<label class="s">Diâmetro do arame<select id="d"><option value="0.8">0,8 mm</option><option value="1" selected>1,0 mm</option><option value="1.2">1,2 mm</option></select></label>
+<h2>Seção transversal do cordão</h2><canvas id="sec" width="320" height="280"></canvas>
+<small>Modelo didático simplificado, com valores aproximados para estudo. Não substitui a EPS (especificação do procedimento de soldagem).</small>
+</aside>
+</main>
+<script>
+const $=i=>document.getElementById(i),cl=(x,a,b)=>Math.max(a,Math.min(b,x)),f=(n,d=1)=>n.toFixed(d).replace('.',',');
+const S={v:22,wfs:6,tr:6,so:15,gas:15,ang:10,d:1,g:'mix',pc:'flat'};
+const PC={flat:{n:'Chapa de 8 mm (cordão sobre chapa)',T:8,k:'flat',d:'Chapa plana para treinar arco, velocidade e altura do cordão.',i:{wfs:6,tr:6}},
+thin:{n:'Chapa fina de 3 mm',T:3,k:'flat',d:'Pouca massa: energia demais fura a chapa.',i:{wfs:4.5,tr:6}},
+butt:{n:'Junta de topo, chapas de 5 mm',T:5,k:'butt',d:'Duas chapas com 2 mm de abertura. Exige penetração total na raiz, sem furar.',i:{wfs:7,tr:4.5}},
+tee:{n:'Junta em T (filete), chapas de 8 mm',T:8,k:'tee',d:'Filete entre a alma e a base. A perna mínima é de 5 mm.',i:{wfs:7,tr:5.5}},
+lap:{n:'Junta sobreposta, chapas de 6 mm',T:6,k:'lap',d:'Filete na borda da chapa superior. A perna mínima é de 4 mm.',i:{wfs:6,tr:6}}};
+const CFG=[['v','Tensão','V',14,36,.5],['wfs','Velocidade do arame','m/min',2,16,.1],['tr','Velocidade de avanço','mm/s',2,12,.5],['so','Stick-out','mm',8,25,1],['gas','Vazão do gás','L/min',6,25,1],['ang','Ângulo da tocha (+ empurrar, − arrastar)','°',-20,30,1]];
+const fm=(k,v)=>k==='ang'&&v>0?'+'+v:f(+v,k==='v'||k==='wfs'||k==='tr'?1:0);
+CFG.forEach(([k,l,u,mn,mx,st])=>{const e=document.createElement('div');e.className='sl';
+e.innerHTML=`<div><span>${l}</span><span><em id="e_${k}"></em> ${u}</span></div><input type="range" id="r_${k}" min="${mn}" max="${mx}" step="${st}" aria-label="${l}">`;
+$('ctl').appendChild(e);$('r_'+k).oninput=ev=>{S[k]=+ev.target.value;ui()}});
+function sync(){CFG.forEach(([k])=>{$('r_'+k).value=S[k];$('e_'+k).textContent=fm(k,S[k])})}
+$('g').onchange=e=>{S.g=e.target.value;ui()};
+$('pc').innerHTML=Object.entries(PC).map(([k,v])=>`<option value="${k}">${v.n}</option>`).join('');$('pc').onchange=e=>{S.pc=e.target.value;reset();ui()};$('d').onchange=e=>{S.d=+e.target.value;ui()};
+
+function calc(){
+ const a={0.8:20,1:25,1.2:31}[S.d];
+ const I=(a*S.wfs+20)*(1-(S.so-15)*0.01),Vo=14+0.05*I,dV=S.v-Vo;
+ const spray=dV>-1&&((S.g==='ar'&&I>200)||(S.g==='mix'&&I>240));
+ const mode=spray?'Spray':(I<(S.g==='co2'?220:200)&&dV<2.5)?'Curto-circuito':'Globular';
+ const heat=S.v*I*0.8/(S.tr*1000),A=Math.PI*S.d*S.d/4*(S.wfs*1000/60)/S.tr;
+ const gf={mix:1,co2:1.15,ar:0.85}[S.g];
+ const J=PC[S.pc],T=J.T,K=J.k,p=cl(I/55*gf*(1-S.ang*0.012)*cl(1+(5-S.tr)*0.05,0.6,1.4)*(K==='butt'?1.4:1),0,12);
+ const w0=Math.sqrt(A)*cl(1.9+dV*0.12,1.3,2.8)*(1+S.ang*0.008),fl=K==='tee'||K==='lap',z=Math.sqrt(2*A/1.1),gA=K==='butt'?2*T:0,w=fl?z:w0;
+ const ei=A-gA<.5,h=fl?z*.75:cl((A-gA)/(0.66*w),0.2,6);
+ const sp=cl({mix:.15,co2:.4,ar:.1}[S.g]+Math.abs(dV)*0.05+(mode==='Globular'?0.25:0)+(mode==='Curto-circuito'?0.05:0),0,1);
+ return{I,Vo,dV,mode,heat,A,p,w,h,sp,uc:dV>3.5||(S.tr>9&&I>200),lf:(K==='butt'?p<.85*T:p<1.5)||heat<.25,pr:S.gas<10?.2:(S.gas>20||S.so>22)?.04:0,bt:p>=T*(K==='butt'?1.35:1),ox:S.gas<10,un:(S.g==='ar'?1:0)+(dV<-4?.5:0),z,ei,T,K,fl};
+}
+function dg(c){const r=[],P=(l,t)=>r.push([l,t]);
+ if(c.lf)P('bd',c.K==='butt'?'Falta de penetração na raiz: a junta não fundiu por inteiro.':'Falta de fusão: pouca penetração ou energia.');
+ if(c.bt)P('bd',c.K==='butt'?'Perfuração: o arco rompeu a raiz da junta.':'Perfuração da chapa de '+c.T+' mm.');else if(c.K!=='butt'&&c.p>.75*c.T)P('wn','Penetração elevada: perto de furar a chapa.');
+ if(c.ei)P('bd','Enchimento insuficiente: o metal não preencheu a abertura.');else if(c.fl){const mn=c.K==='tee'?5:4;if(c.z<mn)P('wn','Perna do filete abaixo do mínimo ('+mn+' mm).');else if(c.z>9)P('wn','Filete grande demais: excesso de metal e distorção.')}else if(c.h>3.5)P('wn','Reforço excessivo (cordão convexo).');
+ if(!c.fl&&!c.ei&&c.h<0.8)P('wn','Cordão muito baixo: pouco metal depositado.');
+ if(c.dV>3.5||(S.tr>9&&c.I>200))P('wn','Risco de mordedura (undercut).');
+ if(c.dV<-4)P('wn','Tensão baixa: arco curto, cordão estreito e alto.');
+ if(c.sp>.6)P('bd','Respingos excessivos.');else if(c.sp>.35)P('wn','Respingos moderados.');
+ if(S.gas<10)P('bd','Porosidade: vazão de gás insuficiente.');
+ else if(S.gas>20)P('wn','Vazão alta: a turbulência pode aspirar ar.');
+ if(S.so>22)P('wn','Stick-out longo: proteção e arco instáveis.');
+ if(S.so<10)P('wn','Stick-out curto: risco de queimar o bico de contato.');
+ if(S.g==='ar')P('wn','Argônio puro em aço: arco instável. Use Ar + CO₂.');
+ if(!r.length)P('ok','Parâmetros equilibrados: cordão de boa qualidade.');
+ return r}
+const NAMES=['Corrente','Calor aportado','Transferência','Largura','Reforço','Penetração','Respingos'];
+$('cards').innerHTML=NAMES.map((n,i)=>`<div class="cd"><span id="n${i}">${n}</span><b id="c${i}"></b></div>`).join('');
+let C=calc();
+function ui(){C=calc();sync();
+ const v=[f(C.I,0)+' A',f(C.heat,2)+' kJ/mm',C.mode,f(C.w)+' mm',f(C.fl?C.z*.707:C.h)+' mm',f(C.p)+' mm',C.sp<.25?'Baixo':C.sp<.5?'Médio':'Alto'];
+ v.forEach((t,i)=>$('c'+i).textContent=t);$('n3').textContent=C.fl?'Perna do filete':'Largura';$('n4').textContent=C.fl?'Garganta':'Reforço';$('pd').textContent=PC[S.pc].d;
+ $('dg').innerHTML=dg(C).map(([l,t])=>`<div class="${l}">${t}</div>`).join('');
+ $('proc').textContent=(S.g==='ar'?'MIG':'MAG')+' · '+{mix:'Ar + 18% CO₂',co2:'CO₂ 100%',ar:'Argônio 100%'}[S.g]+' · arame de '+f(S.d)+' mm';
+ sec()}
+function sec(){const k=$('sec').getContext('2d'),m=15,y0=70,x=160,c=C;
+ const p=Math.min(c.p,8),w=Math.min(c.w,19),h=Math.min(c.h,4.6);
+ k.clearRect(0,0,320,230);k.fillStyle='#4a525d';k.fillRect(0,y0,320,120);
+ k.save();k.beginPath();k.rect(0,y0,320,120);k.clip();
+ k.fillStyle='rgba(224,160,90,.3)';k.beginPath();k.ellipse(x,y0,(w/2+2.5)*m,(p+2.5)*m,0,0,Math.PI);k.fill();
+ k.fillStyle='#dcd6c8';k.beginPath();k.ellipse(x,y0,w/2*m*.95,p*m,0,0,Math.PI);k.fill();k.restore();
+ k.beginPath();k.moveTo(x-w/2*m,y0);k.quadraticCurveTo(x,y0-2*h*m,x+w/2*m,y0);k.closePath();k.fill();
+ k.fillStyle='#10141a';
+ if(c.pr)for(let i=0;i<5;i++){k.beginPath();k.arc(x+(i-2)*w*m*.16,y0+(i%2?.35:.2)*p*m+4,2+i%3,0,7);k.fill()}
+ if(c.uc)for(const s of[-1,1]){k.beginPath();k.moveTo(x+s*w/2*m,y0);k.lineTo(x+s*(w/2*m+9),y0);k.lineTo(x+s*(w/2*m+2),y0+8);k.fill()}
+ if(c.lf){k.strokeStyle='#10141a';k.lineWidth=2;for(const s of[-1,1]){k.beginPath();k.moveTo(x+s*w/2*m,y0);k.lineTo(x+s*w/2*m*.85,y0+p*m*.9);k.stroke()}}
+ if(c.bt){k.fillStyle='#0b0e12';k.fillRect(x-9,y0,18,120)}
+ k.fillStyle='#e9edf1';k.font='12px system-ui,sans-serif';
+ k.fillText('Chapa de 8 mm · fundo: zona fundida (clara) e ZTA (alaranjada)',8,205,304);
+ k.fillText('L '+f(c.w)+' mm   R '+f(c.h)+' mm   P '+f(c.p)+' mm',8,222);
+ if(c.p>=8){k.fillStyle='#f0645f';k.font='bold 14px system-ui,sans-serif';k.fillText('Perfuração',x-36,150)}}
+
+function sec(){const k=$('sec').getContext('2d'),m=15,c=C,K=c.K,T=c.T,tp=T*m,fl=c.fl,y0=110,x=K==='tee'?150:K==='lap'?170:160;
+ const p=Math.min(c.p,T*1.4),w=Math.min(c.w,19),h=Math.min(c.h,4.6),z=Math.min(c.z,K==='lap'?T:9),zm=z*m,FZ='#dcd6c8',DK='#10141a',s2=K==='tee'?1:-1;
+ k.clearRect(0,0,320,280);k.fillStyle='#4a525d';
+ if(K==='butt'){k.fillRect(0,y0,x-15,tp);k.fillRect(x+15,y0,305-x,tp)}else k.fillRect(0,y0,320,tp);
+ if(K==='tee')k.fillRect(x-tp,y0-100,tp,100);
+ if(K==='lap')k.fillRect(x,y0-tp,320-x,tp);
+ const cx0=K==='tee'?x+zm*.3:K==='lap'?x-zm*.3:x,rx=fl?zm*.55:w/2*m*.95,tx0=x+s2*zm;
+ k.save();k.beginPath();k.rect(0,y0,320,tp);k.clip();
+ k.fillStyle='rgba(224,160,90,.3)';k.beginPath();k.ellipse(cx0,y0,rx+2.5*m,(p+2.5)*m,0,0,Math.PI);k.fill();
+ k.fillStyle=FZ;k.beginPath();k.ellipse(cx0,y0,rx,p*m,0,0,Math.PI);k.fill();
+ if(K==='butt')k.fillRect(x-15,y0,30,Math.min(p*m,tp));
+ k.restore();
+ k.fillStyle=FZ;k.beginPath();
+ if(fl){k.moveTo(x,y0);k.lineTo(tx0,y0);k.quadraticCurveTo(x+s2*.65*zm,y0-.65*zm,x,y0-zm)}else{k.moveTo(x-w/2*m,y0);k.quadraticCurveTo(x,y0-2*h*m,x+w/2*m,y0)}
+ k.closePath();k.fill();k.fillStyle=DK;
+ if(c.pr)for(let i=0;i<5;i++){k.beginPath();k.arc(fl?x+s2*zm*(.2+.1*i):x+(i-2)*w*m*.16,fl?y0-zm*(.15+.04*(i%2)):y0+(i%2?.35:.2)*p*m+4,2+i%3,0,7);k.fill()}
+ if(c.uc){const q=(a,b,d,e,f2,g)=>{k.beginPath();k.moveTo(a,b);k.lineTo(d,e);k.lineTo(f2,g);k.fill()};
+  if(fl){q(tx0,y0,tx0+s2*9,y0,tx0+s2*2,y0+8);q(x,y0-zm,x-s2*8,y0-zm,x-s2,y0-zm-8)}else for(const s of[-1,1])q(x+s*w/2*m,y0,x+s*(w/2*m+9),y0,x+s*(w/2*m+2),y0+8)}
+ if(c.lf){k.strokeStyle=DK;k.lineWidth=2;k.beginPath();
+  if(fl){k.moveTo(tx0,y0);k.lineTo(tx0-s2*zm*.4,y0+p*m*.9)}else for(const s of[-1,1]){k.moveTo(x+s*w/2*m,y0);k.lineTo(x+s*w/2*m*.85,y0+p*m*.9)}k.stroke()}
+ if(c.bt){k.fillStyle='#0b0e12';k.fillRect(cx0-9,y0,18,tp)}
+ k.fillStyle='#e9edf1';k.font='12px system-ui,sans-serif';const ty=y0+tp+22;
+ k.fillText('Chapa de '+T+' mm · zona fundida (clara) e ZTA (alaranjada)',8,ty,304);
+ k.fillText(fl?'Perna '+f(c.z)+' mm   Garganta '+f(c.z*.707)+' mm   P '+f(c.p)+' mm':'L '+f(c.w)+' mm   R '+f(c.h)+' mm   P '+f(c.p)+' mm',8,ty+17);
+ if(c.bt){k.fillStyle='#f0645f';k.font='bold 14px system-ui,sans-serif';k.fillText('Perfuração',8,22)}}
+const cv=$('sim'),cx=cv.getContext('2d'),X0=70,X1=830,SF=290,SC=6;
+let run=false,tx=X0,bx=X0,beads=[],pt=[],t=0,lt=0,wp=0,balls=[],pores=[],holes=[],lh=X0;
+function reset(){beads=[];pt=[];balls=[];pores=[];holes=[];lh=X0;tx=bx=X0;run=false;$('go').textContent='Soldar'}
+$('go').onclick=()=>{if(tx>=X1)reset();run=!run;$('go').textContent=run?'Pausar':'Soldar'};
+$('rs').onclick=reset;
+$('id').onclick=()=>{Object.assign(S,{so:15,gas:15,ang:10},PC[S.pc].i);C=calc();S.v=Math.round((C.Vo+(S.g==='co2'?1:0))*2)/2;ui()};
+function step(dt){t+=dt;wp+=S.wfs*8*dt;
+ if(run){tx+=S.tr*SC*1.5*dt;
+  while(bx<tx){const wob=1+.18*C.un*Math.sin(bx*.15+Math.sin(bx*.07)*3),w=Math.min(C.w*SC*wob,118),yb=C.fl?436+w/2:452;
+  beads.push({x:bx,h:C.h*SC,w,b:t,uc:C.uc,lf:C.lf,ox:C.ox});
+  if(Math.random()<C.pr)pores.push({x:bx,y2:yb+(Math.random()-.5)*w*.7,r:1+Math.random()*1.8,y:C.h*SC*(.5+.45*Math.random())});
+  if(C.bt&&bx-lh>26){holes.push({x:bx,y2:yb,r:Math.max(6,w*.28)});lh=bx}
+  bx+=2}
+  if(tx>=X1){run=false;$('go').textContent='Soldar'}
+  let n=(C.sp*70+4)*dt;while(n>0){if(Math.random()<n)pt.push({x:tx,y:SF-(1+(S.v-14)*.25)*SC,vx:(Math.random()-.3)*190,vy:-Math.random()*220-20,l:.7+Math.random()*.6,ball:Math.random()<cl(C.sp-.1,0,.8)});n--}
+  if(C.bt&&Math.random()<dt*25)pt.push({x:tx+Math.random()*8-4,y:SF+C.T*SC-2,vx:0,vy:60,l:1.2,d:1})}
+ pt=pt.filter(p=>{p.vy+=620*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.d)return p.y<372;if(p.y>SF){p.y=SF;p.vy*=-.3;p.vx*=.5;if(p.ball){p.ball=0;if(balls.length<400)balls.push({x:p.x,y2:(C.fl?436+C.w*SC/2:452)+(Math.random()*2-1)*(C.w*SC/2+22),r:1+Math.random()*2.2})}}p.l-=dt;return p.l>0});
+ if(beads.length>500&&!run&&false)beads.shift()}
+const col=(b,rp=1)=>{const q=cl(1-(t-b.b)/6,0,1),c0=b.ox?[78,66,56]:[95,100,108];return `rgb(${(c0[0]+(255-c0[0])*q)*rp|0},${(c0[1]+90*q*q)*rp|0},${(c0[2]-(c0[2]-38)*q)*rp|0})`};
+function plan(){const YC=452,WF=436,fl=C.fl,K=C.K,Y0=b=>fl?WF:YC-b.w/2;
+ let g=cx.createLinearGradient(0,392,0,512);g.addColorStop(0,'#58606b');g.addColorStop(1,'#3a414a');
+ cx.fillStyle=g;cx.fillRect(40,392,820,120);
+ if(K==='butt'){cx.fillStyle='#0b0e12';cx.fillRect(40,YC-6,820,12)}
+ if(fl){cx.fillStyle='#7a828d';cx.fillRect(40,392,820,WF-392);cx.fillStyle='#9aa2ad';cx.fillRect(40,WF-3,820,3)}
+ cx.fillStyle='#9fabb8';cx.font='11px system-ui,sans-serif';cx.fillText('Vista lateral',48,20);cx.textAlign='right';cx.fillText('Vista superior',852,408);cx.textAlign='left';
+ for(const b of beads){const y0=Y0(b),rp=.92+.08*Math.sin(b.x*.28);
+  if(b.uc){cx.fillStyle='#0d1013';cx.fillRect(b.x,y0-3,2.2,3);cx.fillRect(b.x,y0+b.w,2.2,3)}
+  cx.fillStyle=col(b,rp);cx.fillRect(b.x,y0,2.2,b.w);
+  if(b.lf){cx.fillStyle='#14181d';cx.fillRect(b.x,y0,2.2,1.5);cx.fillRect(b.x,y0+b.w-1.5,2.2,1.5)}}
+ cx.fillStyle='#10141a';for(const p of pores){cx.beginPath();cx.arc(p.x,p.y2,p.r,0,7);cx.fill()}
+ for(const o of holes){cx.fillStyle='#0b0e12';cx.beginPath();cx.arc(o.x,o.y2,o.r,0,7);cx.fill();cx.strokeStyle='#ff8a2a';cx.lineWidth=1.5;cx.stroke()}
+ cx.fillStyle='#c9a27a';for(const o of balls){cx.beginPath();cx.arc(o.x,o.y2,o.r,0,7);cx.fill()}
+ if(run){cx.save();cx.beginPath();cx.rect(0,392,900,128);cx.clip();cx.globalCompositeOperation='lighter';
+  const yg=fl?WF+C.w*SC/2:YC,g2=cx.createRadialGradient(tx,yg,0,tx,yg,C.w*SC*.7+10);g2.addColorStop(0,'rgba(255,255,255,.95)');g2.addColorStop(.3,'rgba(255,200,100,.6)');g2.addColorStop(1,'rgba(255,100,0,0)');
+  cx.fillStyle=g2;cx.fillRect(tx-90,yg-90,180,180);cx.restore()}}
+function draw(){
+ const a=S.ang*Math.PI/180,sa=Math.sin(a),ca=Math.cos(a),arcL=1+(S.v-14)*.25;
+ const E={x:tx,y:SF-arcL*SC},T={x:E.x-sa*S.so*SC,y:E.y-ca*S.so*SC};
+ const loc=(x,y)=>({x:T.x+x*ca+y*sa,y:T.y-x*sa+y*ca});
+ cx.globalCompositeOperation='source-over';cx.globalAlpha=1;cx.clearRect(0,0,900,520);
+ const TP=C.T*SC,K=C.K;let g=cx.createLinearGradient(0,SF,0,SF+TP);g.addColorStop(0,'#58606b');g.addColorStop(1,'#2e343c');
+ cx.fillStyle=g;cx.fillRect(40,SF,820,TP);cx.fillStyle='#161a20';cx.fillRect(0,SF+TP,900,40);
+ if(C.fl){const WH=K==='tee'?120:TP;g=cx.createLinearGradient(0,SF-WH,0,SF);g.addColorStop(0,'#737b86');g.addColorStop(1,'#4a525d');cx.fillStyle=g;cx.fillRect(40,SF-WH,820,WH)}
+ cx.fillStyle='#9fabb8';cx.font='11px system-ui,sans-serif';cx.fillRect(48,SF+62,60,2);cx.fillText('10 mm',48,SF+78);
+ for(const b of beads){const hh=b.h*(1+.07*Math.sin(b.x*.28));
+  cx.fillStyle=col(b);cx.fillRect(b.x,SF-hh,2.2,hh)}
+ cx.fillStyle='#0b0e12';for(const o of holes)cx.fillRect(o.x-5,SF+TP*.25,10,TP*.75);
+ cx.fillStyle='#10141a';for(const p of pores){cx.beginPath();cx.arc(p.x,SF-p.y,p.r,0,7);cx.fill()}
+ cx.fillStyle='#c9a27a';for(const o of balls){cx.beginPath();cx.arc(o.x,SF-o.r,o.r,0,7);cx.fill()}
+ plan();
+ if(run){const rx=22+C.w*2.5;g=cx.createRadialGradient(tx-rx*.5,SF-4,2,tx-rx*.5,SF-4,rx);
+  g.addColorStop(0,'rgba(255,225,130,1)');g.addColorStop(1,'rgba(255,130,30,.7)');
+  cx.fillStyle=g;cx.beginPath();cx.ellipse(tx-rx*.5,SF-3,rx,C.h*SC*.8+4,0,Math.PI,2*Math.PI);cx.fill()}
+ // gás
+ const gw=30+S.gas*1.6,N1=loc(-14,4),N2=loc(14,4);
+ cx.fillStyle=S.gas<10?'rgba(255,120,100,.12)':`rgba(150,210,255,${.05+S.gas*.006})`;
+ cx.beginPath();cx.moveTo(N1.x,N1.y);cx.lineTo(N2.x,N2.y);cx.lineTo(E.x+gw,SF);cx.lineTo(E.x-gw,SF);cx.fill();
+ // arame e tocha
+ cx.save();cx.translate(T.x,T.y);cx.rotate(-a);
+ cx.lineWidth=S.d*SC*.8;cx.strokeStyle='#cdd3db';cx.beginPath();cx.moveTo(0,-8);cx.lineTo(0,S.so*SC);cx.stroke();
+ cx.strokeStyle='#8a929c';cx.setLineDash([5,7]);cx.lineDashOffset=-wp;cx.stroke();cx.setLineDash([]);
+ g=cx.createLinearGradient(-17,0,17,0);g.addColorStop(0,'#4f5762');g.addColorStop(.5,'#b3bbc6');g.addColorStop(1,'#4f5762');
+ cx.fillStyle='#3a424c';cx.fillRect(-11,-190,22,100);
+ cx.fillStyle=g;cx.beginPath();cx.moveTo(-17,-94);cx.lineTo(17,-94);cx.lineTo(12,4);cx.lineTo(-12,4);cx.fill();
+ cx.fillStyle='#c98f4c';cx.fillRect(-4,-4,8,6);
+ if(run&&C.mode==='Globular'){cx.fillStyle='#ffb347';cx.beginPath();cx.arc(0,S.so*SC,S.d*SC*(.45+.5*((t*2.5)%1)),0,7);cx.fill()}
+ cx.restore();
+ // arco
+ const on=run&&(C.mode==='Curto-circuito'?Math.sin(t*70)>-.3:C.mode==='Globular'?Math.random()>.12:Math.random()>C.un*.15);
+ if(on){const P={x:tx+C.un*3*Math.sin(t*37),y:SF-3},M={x:E.x,y:(E.y+P.y)/2};cx.globalCompositeOperation='lighter';
+  g=cx.createRadialGradient(M.x,M.y,0,M.x,M.y,C.mode==='Spray'?85:70);
+  g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.15,'rgba(170,200,255,.9)');g.addColorStop(.5,'rgba(255,140,40,.35)');g.addColorStop(1,'rgba(255,100,0,0)');
+  cx.globalAlpha=.85+.15*Math.sin(t*60);cx.fillStyle=g;cx.fillRect(M.x-100,M.y-100,200,200);
+  cx.globalAlpha=1;cx.strokeStyle='#fff';cx.lineWidth=C.mode==='Spray'?2:3;cx.beginPath();cx.moveTo(E.x,E.y);cx.lineTo(P.x,P.y);cx.stroke()}
+ cx.globalCompositeOperation='lighter';
+ for(const p of pt){cx.globalAlpha=cl(p.l,0,1);cx.fillStyle='#ffb347';cx.fillRect(p.x,p.y,2.2,2.2)}
+ cx.globalAlpha=1;cx.globalCompositeOperation='source-over'}
+const k3=document.createElement('canvas'),g3=k3.getContext('2d'),sw=document.createElement('div'),w3=document.createElement('div');
+k3.width=320;k3.height=220;sw.id='sw';w3.id='v3w';k3.setAttribute('aria-label','Vista 3D da peça');
+cv.parentNode.insertBefore(sw,cv);sw.appendChild(cv);
+w3.innerHTML='<div class="vb">'+[['iso','3D'],['lat','Lateral'],['sup','Superior'],['fro','Frontal']].map(([k,l])=>`<button data-v="${k}">${l}</button>`).join('')+'<button id="vz" aria-label="Ampliar vista 3D">⤢</button><button id="vt" aria-label="Ocultar vista 3D">−</button></div>';
+w3.appendChild(k3);sw.appendChild(w3);
+const VW={iso:[-35,32],lat:[0,3],sup:[0,90],fro:[90,3]},vbs=()=>w3.querySelectorAll('[data-v]');
+let V=[-35,32],TV=[-35,32],dr=null;
+const setV=n=>{TV=VW[n].slice();vbs().forEach(b=>b.classList.toggle('on',b.dataset.v===n))};
+vbs().forEach(b=>b.onclick=()=>setV(b.dataset.v));setV('iso');
+$('vt').onclick=e=>{const h=k3.style.display==='none';k3.style.display=h?'block':'none';e.target.textContent=h?'−':'+'};
+k3.onpointerdown=e=>{dr=[e.clientX,e.clientY];k3.setPointerCapture(e.pointerId)};
+k3.onpointermove=e=>{if(!dr)return;TV[0]+=(e.clientX-dr[0])*.6;TV[1]=cl(TV[1]+(e.clientY-dr[1])*.5,2,90);V=TV.slice();dr=[e.clientX,e.clientY];vbs().forEach(b=>b.classList.remove('on'))};
+k3.onpointerup=()=>dr=null;
+$('vz').onclick=e=>{const b=w3.classList.toggle('big');k3.width=b?640:320;k3.height=b?440:220;e.target.textContent=b?'⤡':'⤢';e.target.setAttribute('aria-label',b?'Reduzir vista 3D':'Ampliar vista 3D')};
+function draw3(){
+ V[0]+=(TV[0]-V[0])*.18;V[1]+=(TV[1]-V[1])*.18;
+ const th=V[0]*Math.PI/180,ph=V[1]*Math.PI/180,ct=Math.cos(th),st=Math.sin(th),cp=Math.cos(ph),sp=Math.sin(ph);
+ const T=C.T,K=C.K,fl=C.fl,L=(X1-X0)/6,Y1=32,W=320,H=220,YB=fl?436:452;
+ const pr=(x,y,z)=>{x-=L/2;const b=-x*st+y*ct;return[x*ct+y*st,z*cp+b*sp,b*cp-z*sp]};
+ let a0=1e9,a1=-1e9,b0=1e9,b1=-1e9;
+ for(const x of[0,L])for(const y of[-Y1,Y1])for(const z of[-T,40]){const q=pr(x,y,z);a0=Math.min(a0,q[0]);a1=Math.max(a1,q[0]);b0=Math.min(b0,q[1]);b1=Math.max(b1,q[1])}
+ const Z=Math.min((W-16)/(a1-a0),(H-24)/(b1-b0)),ox=W/2-(a1+a0)/2*Z,oy=H/2+(b1+b0)/2*Z-4;
+ const P=(x,y,z)=>{const q=pr(x,y,z);return[ox+q[0]*Z,oy-q[1]*Z,q[2]]};
+ g3.setTransform(k3.width/320,0,0,k3.width/320,0,0);g3.clearRect(0,0,W,H);
+ const poly=(pts,c)=>{g3.beginPath();pts.forEach((p,i)=>i?g3.lineTo(p[0],p[1]):g3.moveTo(p[0],p[1]));g3.closePath();g3.fillStyle=c;g3.fill();g3.strokeStyle=c;g3.lineWidth=.6;g3.stroke()};
+ const box=(x0,x1,y0,y1,z0,z1,c)=>{for(const[n,f,s]of[[[0,0,1],[[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],1],[[0,-1,0],[[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]],.78],[[0,1,0],[[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]],.7],[[-1,0,0],[[x0,y0,z0],[x0,y1,z0],[x0,y1,z1],[x0,y0,z1]],.6],[[1,0,0],[[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]],.64]])
+  if((-n[0]*st+n[1]*ct)*cp-n[2]*sp<0)poly(f.map(p=>P(...p)),`rgb(${c[0]*s|0},${c[1]*s|0},${c[2]*s|0})`)};
+ const prof=b=>{if(fl){const zl=Math.min(b.w/SC,K==='lap'?T:9);return[0,.25,.5,.75,1].map(t=>{const u=1-t;return[-1.3*t*u*zl-t*t*zl,u*u*zl+1.3*t*u*zl]})}
+  const w=b.w/SC,h=b.h/SC;return[[-w/2,0],[-.3*w,.8*h],[0,h],[.3*w,.8*h],[w/2,0]]};
+ const idx=[];for(let i=0;i<beads.length;i+=3)idx.push(i);if(beads.length&&idx[idx.length-1]!==beads.length-1)idx.push(beads.length-1);
+ const segs=[];
+ for(let n=0;n<idx.length-1;n++){const a=beads[idx[n]],b=beads[idx[n+1]],pa=prof(a),pb=prof(b),xa=(a.x-X0)/6,xb=(b.x-X0)/6;
+  for(let j=0;j<pa.length-1;j++){const q=[P(xa,pa[j][0],pa[j][1]),P(xa,pa[j+1][0],pa[j+1][1]),P(xb,pb[j+1][0],pb[j+1][1]),P(xb,pb[j][0],pb[j][1])];
+   segs.push([(q[0][2]+q[2][2])/2,q,col(b,fl?.95:1-Math.abs(j-1.5)*.06)])}}
+ const cap=b=>{const pts=prof(b);if(fl)pts.push([0,0]);const x=(b.x-X0)/6,q=pts.map(p=>P(x,p[0],p[1]));segs.push([q.reduce((s,p)=>s+p[2],0)/q.length,q,col(b,.92)])};
+ if(beads.length){cap(beads[0]);cap(beads[beads.length-1])}
+ segs.sort((a,b)=>b[0]-a[0]);
+ const G=[92,100,110];
+ if(K==='butt'){box(0,L,-Y1,-1,-T,0,G);box(0,L,1,Y1,-T,0,G)}else box(0,L,-Y1,Y1,-T,0,G);
+ g3.fillStyle='#c9a27a';for(const o of balls){const q=P((o.x-X0)/6,(YB-o.y2)/6,o.r/6);g3.beginPath();g3.arc(q[0],q[1],Math.max(1.2,o.r/6*Z),0,7);g3.fill()}
+ const occ=()=>{if(K==='tee')box(0,L,0,T,0,20,[104,112,123]);if(K==='lap')box(0,L,0,Y1,0,T,[104,112,123])},bd=()=>{for(const s of segs)poly(s[1],s[2])};
+ if(fl&&ct<0){bd();occ()}else{occ();bd()}
+ if(V[1]>25){g3.fillStyle='#10141a';for(const p of pores){const q=P((p.x-X0)/6,(YB-p.y2)/6,p.y/6);g3.beginPath();g3.arc(q[0],q[1],Math.max(1,p.r/6*Z*1.4),0,7);g3.fill()}
+  for(const o of holes){const q=P((o.x-X0)/6,(YB-o.y2)/6,.2);g3.beginPath();g3.arc(q[0],q[1],o.r/6*Z,0,7);g3.fillStyle='#0b0e12';g3.fill();g3.strokeStyle='#ff8a2a';g3.lineWidth=1;g3.stroke()}}
+ const xt=(tx-X0)/6,an=S.ang*Math.PI/180,ws=fl?-.7:0,dn=Math.hypot(Math.sin(an),ws,1),dv=[-Math.sin(an)/dn,ws/dn,1/dn],bs=fl?[xt,-C.w*.4,C.w*.35]:[xt,0,C.h*.5],al=1+(S.v-14)*.25;
+ const at=d=>P(bs[0]+dv[0]*d,bs[1]+dv[1]*d,bs[2]+dv[2]*d),e0=at(0),e1=at(al),e2=at(al+S.so),e3=at(al+S.so+22);
+ g3.lineCap='round';const ln=(p,q,w,c)=>{g3.beginPath();g3.moveTo(p[0],p[1]);g3.lineTo(q[0],q[1]);g3.lineWidth=w;g3.strokeStyle=c;g3.stroke()};
+ ln(e2,e3,8,'#8d95a0');ln(e1,e2,1.6,'#cdd3db');
+ if(run){ln(e0,e1,2,'#fff');g3.globalCompositeOperation='lighter';const gr=g3.createRadialGradient(e1[0],e1[1],0,e1[0],e1[1],18);gr.addColorStop(0,'rgba(255,255,255,.95)');gr.addColorStop(.3,'rgba(255,170,70,.5)');gr.addColorStop(1,'rgba(255,100,0,0)');g3.fillStyle=gr;g3.fillRect(e1[0]-20,e1[1]-20,40,40);g3.globalCompositeOperation='source-over'}
+ g3.fillStyle='#9fabb8';g3.font='11px system-ui,sans-serif';g3.fillText('Arraste para girar',6,H-6)}
+function loop(ts){const dt=Math.min(.05,(ts-lt)/1000||0);lt=ts;step(dt);draw();draw3();requestAnimationFrame(loop)}
+ui();requestAnimationFrame(loop);
+</script></body></html>
