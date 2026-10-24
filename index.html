@@ -60,20 +60,21 @@ small{display:block;margin-top:14px;color:var(--mu);font-size:.8rem}
 </main>
 <script>
 const $=i=>document.getElementById(i),cl=(x,a,b)=>Math.max(a,Math.min(b,x)),f=(n,d=1)=>n.toFixed(d).replace('.',',');
-const S={v:22,wfs:6,tr:6,so:15,gas:15,ang:10,d:1,g:'mix',pc:'flat'};
+const S={v:22,wfs:6,tr:6,so:15,gas:15,ang:10,d:1,g:'mix',pc:'flat',pl:100,pw:80};
+let Tp=0;
 const PC={flat:{n:'Chapa de 8 mm (cordão sobre chapa)',T:8,k:'flat',d:'Chapa plana para treinar arco, velocidade e altura do cordão.',i:{wfs:6,tr:6}},
 thin:{n:'Chapa fina de 3 mm',T:3,k:'flat',d:'Pouca massa: energia demais fura a chapa.',i:{wfs:4.5,tr:6}},
 butt:{n:'Junta de topo, chapas de 5 mm',T:5,k:'butt',d:'Duas chapas com 2 mm de abertura. Exige penetração total na raiz, sem furar.',i:{wfs:7,tr:4.5}},
 tee:{n:'Junta em T (filete), chapas de 8 mm',T:8,k:'tee',d:'Filete entre a alma e a base. A perna mínima é de 5 mm.',i:{wfs:7,tr:5.5}},
 lap:{n:'Junta sobreposta, chapas de 6 mm',T:6,k:'lap',d:'Filete na borda da chapa superior. A perna mínima é de 4 mm.',i:{wfs:6,tr:6}}};
-const CFG=[['v','Tensão','V',14,36,.5],['wfs','Velocidade do arame','m/min',2,16,.1],['tr','Velocidade de avanço','mm/s',2,12,.5],['so','Stick-out','mm',8,25,1],['gas','Vazão do gás','L/min',6,25,1],['ang','Ângulo da tocha (+ empurrar, − arrastar)','°',-20,30,1]];
+const CFG=[['v','Tensão','V',14,36,.5],['wfs','Velocidade do arame','m/min',2,16,.1],['tr','Velocidade de avanço','mm/s',2,12,.5],['so','Stick-out','mm',8,25,1],['gas','Vazão do gás','L/min',6,25,1],['ang','Ângulo da tocha (+ empurrar, − arrastar)','°',-20,30,1],['pl','Comprimento da peça','mm',40,126,2],['pw','Largura da peça','mm',30,120,2]];
 const fm=(k,v)=>k==='ang'&&v>0?'+'+v:f(+v,k==='v'||k==='wfs'||k==='tr'?1:0);
 CFG.forEach(([k,l,u,mn,mx,st])=>{const e=document.createElement('div');e.className='sl';
 e.innerHTML=`<div><span>${l}</span><span><em id="e_${k}"></em> ${u}</span></div><input type="range" id="r_${k}" min="${mn}" max="${mx}" step="${st}" aria-label="${l}">`;
-$('ctl').appendChild(e);$('r_'+k).oninput=ev=>{S[k]=+ev.target.value;ui()}});
+$('ctl').appendChild(e);$('r_'+k).oninput=ev=>{S[k]=+ev.target.value;if(k==='pl'){X1=X0+S.pl*SC;reset()}ui()}});
 function sync(){CFG.forEach(([k])=>{$('r_'+k).value=S[k];$('e_'+k).textContent=fm(k,S[k])})}
 $('g').onchange=e=>{S.g=e.target.value;ui()};
-$('pc').innerHTML=Object.entries(PC).map(([k,v])=>`<option value="${k}">${v.n}</option>`).join('');$('pc').onchange=e=>{S.pc=e.target.value;reset();ui()};$('d').onchange=e=>{S.d=+e.target.value;ui()};
+$('pc').innerHTML=Object.entries(PC).map(([k,v])=>`<option value="${k}">${v.n}</option>`).join('');$('pc').onchange=e=>{S.pc=e.target.value;reset();$('id').onclick()};$('d').onchange=e=>{S.d=+e.target.value;ui()};
 
 function calc(){
  const a={0.8:20,1:25,1.2:31}[S.d];
@@ -82,7 +83,7 @@ function calc(){
  const mode=spray?'Spray':(I<(S.g==='co2'?220:200)&&dV<2.5)?'Curto-circuito':'Globular';
  const heat=S.v*I*0.8/(S.tr*1000),A=Math.PI*S.d*S.d/4*(S.wfs*1000/60)/S.tr;
  const gf={mix:1,co2:1.15,ar:0.85}[S.g];
- const J=PC[S.pc],T=J.T,K=J.k,p=cl(I/55*gf*(1-S.ang*0.012)*cl(1+(5-S.tr)*0.05,0.6,1.4)*(K==='butt'?1.4:1),0,12);
+ const J=PC[S.pc],T=J.T,K=J.k,p=cl(I/55*gf*(1-S.ang*0.012)*cl(1+(5-S.tr)*0.05,0.6,1.4)*(K==='butt'?1.4:1)*(1+.35*Tp),0,12);
  const w0=Math.sqrt(A)*cl(1.9+dV*0.12,1.3,2.8)*(1+S.ang*0.008),fl=K==='tee'||K==='lap',z=Math.sqrt(2*A/1.1),gA=K==='butt'?2*T:0,w=fl?z:w0;
  const ei=A-gA<.5,h=fl?z*.75:cl((A-gA)/(0.66*w),0.2,6);
  const sp=cl({mix:.15,co2:.4,ar:.1}[S.g]+Math.abs(dV)*0.05+(mode==='Globular'?0.25:0)+(mode==='Curto-circuito'?0.05:0),0,1);
@@ -101,15 +102,16 @@ function dg(c){const r=[],P=(l,t)=>r.push([l,t]);
  if(S.so>22)P('wn','Stick-out longo: proteção e arco instáveis.');
  if(S.so<10)P('wn','Stick-out curto: risco de queimar o bico de contato.');
  if(S.g==='ar')P('wn','Argônio puro em aço: arco instável. Use Ar + CO₂.');
+ if(Tp>.6)P('wn','Peça superaquecida: a penetração aumenta e há risco de perfurar e empenar.');
  if(!r.length)P('ok','Parâmetros equilibrados: cordão de boa qualidade.');
  return r}
-const NAMES=['Corrente','Calor aportado','Transferência','Largura','Reforço','Penetração','Respingos'];
+const NAMES=['Corrente','Calor aportado','Transferência','Largura','Reforço','Penetração','Respingos','Temp. da peça'];
 $('cards').innerHTML=NAMES.map((n,i)=>`<div class="cd"><span id="n${i}">${n}</span><b id="c${i}"></b></div>`).join('');
 let C=calc();
 function ui(){C=calc();sync();
- const v=[f(C.I,0)+' A',f(C.heat,2)+' kJ/mm',C.mode,f(C.w)+' mm',f(C.fl?C.z*.707:C.h)+' mm',f(C.p)+' mm',C.sp<.25?'Baixo':C.sp<.5?'Médio':'Alto'];
+ const v=[f(C.I,0)+' A',f(C.heat,2)+' kJ/mm',C.mode,f(C.w)+' mm',f(C.fl?C.z*.707:C.h)+' mm',f(C.p)+' mm',C.sp<.25?'Baixo':C.sp<.5?'Médio':'Alto',f(25+Tp*500,0)+' °C'];
  v.forEach((t,i)=>$('c'+i).textContent=t);$('n3').textContent=C.fl?'Perna do filete':'Largura';$('n4').textContent=C.fl?'Garganta':'Reforço';$('pd').textContent=PC[S.pc].d;
- $('dg').innerHTML=dg(C).map(([l,t])=>`<div class="${l}">${t}</div>`).join('');
+ const dh=dg(C).map(([l,t])=>`<div class="${l}">${t}</div>`).join('');if(dh!==$('dg').dataset.h){$('dg').innerHTML=dh;$('dg').dataset.h=dh}
  $('proc').textContent=(S.g==='ar'?'MIG':'MAG')+' · '+{mix:'Ar + 18% CO₂',co2:'CO₂ 100%',ar:'Argônio 100%'}[S.g]+' · arame de '+f(S.d)+' mm';
  sec()}
 function sec(){const k=$('sec').getContext('2d'),m=15,y0=70,x=160,c=C;
@@ -154,16 +156,18 @@ function sec(){const k=$('sec').getContext('2d'),m=15,c=C,K=c.K,T=c.T,tp=T*m,fl=
  k.fillText('Chapa de '+T+' mm · zona fundida (clara) e ZTA (alaranjada)',8,ty,304);
  k.fillText(fl?'Perna '+f(c.z)+' mm   Garganta '+f(c.z*.707)+' mm   P '+f(c.p)+' mm':'L '+f(c.w)+' mm   R '+f(c.h)+' mm   P '+f(c.p)+' mm',8,ty+17);
  if(c.bt){k.fillStyle='#f0645f';k.font='bold 14px system-ui,sans-serif';k.fillText('Perfuração',8,22)}}
-const cv=$('sim'),cx=cv.getContext('2d'),X0=70,X1=830,SF=290,SC=6;
-let run=false,tx=X0,bx=X0,beads=[],pt=[],t=0,lt=0,wp=0,balls=[],pores=[],holes=[],lh=X0;
-function reset(){beads=[];pt=[];balls=[];pores=[];holes=[];lh=X0;tx=bx=X0;run=false;$('go').textContent='Soldar'}
+const cv=$('sim'),cx=cv.getContext('2d'),X0=70,SF=290,SC=6;let X1=70+S.pl*6;
+let run=false,tx=X0,bx=X0,beads=[],pt=[],t=0,lt=0,wp=0,balls=[],pores=[],holes=[],lh=X0,tc=0;
+function reset(){beads=[];pt=[];balls=[];pores=[];holes=[];lh=X0;Tp=0;tx=bx=X0;run=false;$('go').textContent='Soldar'}
 $('go').onclick=()=>{if(tx>=X1)reset();run=!run;$('go').textContent=run?'Pausar':'Soldar'};
 $('rs').onclick=reset;
 $('id').onclick=()=>{Object.assign(S,{so:15,gas:15,ang:10},PC[S.pc].i);C=calc();S.v=Math.round((C.Vo+(S.g==='co2'?1:0))*2)/2;ui()};
 function step(dt){t+=dt;wp+=S.wfs*8*dt;
+ Tp=cl(Tp+((run?S.v*C.I/(S.pw*S.pl*C.T)*.2:0)-Tp*.02)*dt,0,1);
+ if(run||Tp>.01){tc+=dt;if(tc>.25){tc=0;C=calc();ui()}}
  if(run){tx+=S.tr*SC*1.5*dt;
   while(bx<tx){const wob=1+.18*C.un*Math.sin(bx*.15+Math.sin(bx*.07)*3),w=Math.min(C.w*SC*wob,118),yb=C.fl?436+w/2:452;
-  beads.push({x:bx,h:C.h*SC,w,b:t,uc:C.uc,lf:C.lf,ox:C.ox});
+  beads.push({x:bx,h:C.h*SC,w,b:t,uc:C.uc,lf:C.lf,ox:C.ox,p:C.p});
   if(Math.random()<C.pr)pores.push({x:bx,y2:yb+(Math.random()-.5)*w*.7,r:1+Math.random()*1.8,y:C.h*SC*(.5+.45*Math.random())});
   if(C.bt&&bx-lh>26){holes.push({x:bx,y2:yb,r:Math.max(6,w*.28)});lh=bx}
   bx+=2}
@@ -175,9 +179,9 @@ function step(dt){t+=dt;wp+=S.wfs*8*dt;
 const col=(b,rp=1)=>{const q=cl(1-(t-b.b)/6,0,1),c0=b.ox?[78,66,56]:[95,100,108];return `rgb(${(c0[0]+(255-c0[0])*q)*rp|0},${(c0[1]+90*q*q)*rp|0},${(c0[2]-(c0[2]-38)*q)*rp|0})`};
 function plan(){const YC=452,WF=436,fl=C.fl,K=C.K,Y0=b=>fl?WF:YC-b.w/2;
  let g=cx.createLinearGradient(0,392,0,512);g.addColorStop(0,'#58606b');g.addColorStop(1,'#3a414a');
- cx.fillStyle=g;cx.fillRect(40,392,820,120);
- if(K==='butt'){cx.fillStyle='#0b0e12';cx.fillRect(40,YC-6,820,12)}
- if(fl){cx.fillStyle='#7a828d';cx.fillRect(40,392,820,WF-392);cx.fillStyle='#9aa2ad';cx.fillRect(40,WF-3,820,3)}
+ cx.fillStyle=g;cx.fillRect(X0-30,392,X1-X0+60,120);if(Tp>.02){cx.fillStyle=`rgba(255,${120-80*Tp|0},30,${Tp*.5})`;cx.fillRect(X0-30,392,X1-X0+60,120)}
+ if(K==='butt'){cx.fillStyle='#0b0e12';cx.fillRect(X0-30,YC-6,X1-X0+60,12)}
+ if(fl){cx.fillStyle='#7a828d';cx.fillRect(X0-30,392,X1-X0+60,WF-392);cx.fillStyle='#9aa2ad';cx.fillRect(X0-30,WF-3,X1-X0+60,3)}
  cx.fillStyle='#9fabb8';cx.font='11px system-ui,sans-serif';cx.fillText('Vista lateral',48,20);cx.textAlign='right';cx.fillText('Vista superior',852,408);cx.textAlign='left';
  for(const b of beads){const y0=Y0(b),rp=.92+.08*Math.sin(b.x*.28);
   if(b.uc){cx.fillStyle='#0d1013';cx.fillRect(b.x,y0-3,2.2,3);cx.fillRect(b.x,y0+b.w,2.2,3)}
@@ -195,8 +199,8 @@ function draw(){
  const loc=(x,y)=>({x:T.x+x*ca+y*sa,y:T.y-x*sa+y*ca});
  cx.globalCompositeOperation='source-over';cx.globalAlpha=1;cx.clearRect(0,0,900,520);
  const TP=C.T*SC,K=C.K;let g=cx.createLinearGradient(0,SF,0,SF+TP);g.addColorStop(0,'#58606b');g.addColorStop(1,'#2e343c');
- cx.fillStyle=g;cx.fillRect(40,SF,820,TP);cx.fillStyle='#161a20';cx.fillRect(0,SF+TP,900,40);
- if(C.fl){const WH=K==='tee'?120:TP;g=cx.createLinearGradient(0,SF-WH,0,SF);g.addColorStop(0,'#737b86');g.addColorStop(1,'#4a525d');cx.fillStyle=g;cx.fillRect(40,SF-WH,820,WH)}
+ cx.fillStyle=g;cx.fillRect(X0-30,SF,X1-X0+60,TP);if(Tp>.02){cx.fillStyle=`rgba(255,${120-80*Tp|0},30,${Tp*.55})`;cx.fillRect(X0-30,SF,X1-X0+60,TP)}cx.fillStyle='#161a20';cx.fillRect(0,SF+TP,900,40);
+ if(C.fl){const WH=K==='tee'?120:TP;g=cx.createLinearGradient(0,SF-WH,0,SF);g.addColorStop(0,'#737b86');g.addColorStop(1,'#4a525d');cx.fillStyle=g;cx.fillRect(X0-30,SF-WH,X1-X0+60,WH)}
  cx.fillStyle='#9fabb8';cx.font='11px system-ui,sans-serif';cx.fillRect(48,SF+62,60,2);cx.fillText('10 mm',48,SF+78);
  for(const b of beads){const hh=b.h*(1+.07*Math.sin(b.x*.28));
   cx.fillStyle=col(b);cx.fillRect(b.x,SF-hh,2.2,hh)}
@@ -248,30 +252,30 @@ $('vz').onclick=e=>{const b=w3.classList.toggle('big');k3.width=b?640:320;k3.hei
 function draw3(){
  V[0]+=(TV[0]-V[0])*.18;V[1]+=(TV[1]-V[1])*.18;
  const th=V[0]*Math.PI/180,ph=V[1]*Math.PI/180,ct=Math.cos(th),st=Math.sin(th),cp=Math.cos(ph),sp=Math.sin(ph);
- const T=C.T,K=C.K,fl=C.fl,L=(X1-X0)/6,Y1=32,W=320,H=220,YB=fl?436:452;
+ const T=C.T,K=C.K,fl=C.fl,L=(X1-X0)/6,Y1=S.pw/2,W=320,H=220,YB=fl?436:452;
  const pr=(x,y,z)=>{x-=L/2;const b=-x*st+y*ct;return[x*ct+y*st,z*cp+b*sp,b*cp-z*sp]};
  let a0=1e9,a1=-1e9,b0=1e9,b1=-1e9;
- for(const x of[0,L])for(const y of[-Y1,Y1])for(const z of[-T,40]){const q=pr(x,y,z);a0=Math.min(a0,q[0]);a1=Math.max(a1,q[0]);b0=Math.min(b0,q[1]);b1=Math.max(b1,q[1])}
+ for(const x of[-5,L+5])for(const y of[-Y1,Y1])for(const z of[-T,40]){const q=pr(x,y,z);a0=Math.min(a0,q[0]);a1=Math.max(a1,q[0]);b0=Math.min(b0,q[1]);b1=Math.max(b1,q[1])}
  const Z=Math.min((W-16)/(a1-a0),(H-24)/(b1-b0)),ox=W/2-(a1+a0)/2*Z,oy=H/2+(b1+b0)/2*Z-4;
  const P=(x,y,z)=>{const q=pr(x,y,z);return[ox+q[0]*Z,oy-q[1]*Z,q[2]]};
  g3.setTransform(k3.width/320,0,0,k3.width/320,0,0);g3.clearRect(0,0,W,H);
  const poly=(pts,c)=>{g3.beginPath();pts.forEach((p,i)=>i?g3.lineTo(p[0],p[1]):g3.moveTo(p[0],p[1]));g3.closePath();g3.fillStyle=c;g3.fill();g3.strokeStyle=c;g3.lineWidth=.6;g3.stroke()};
  const box=(x0,x1,y0,y1,z0,z1,c)=>{for(const[n,f,s]of[[[0,0,1],[[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],1],[[0,-1,0],[[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]],.78],[[0,1,0],[[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]],.7],[[-1,0,0],[[x0,y0,z0],[x0,y1,z0],[x0,y1,z1],[x0,y0,z1]],.6],[[1,0,0],[[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]],.64]])
-  if((-n[0]*st+n[1]*ct)*cp-n[2]*sp<0)poly(f.map(p=>P(...p)),`rgb(${c[0]*s|0},${c[1]*s|0},${c[2]*s|0})`)};
- const prof=b=>{if(fl){const zl=Math.min(b.w/SC,K==='lap'?T:9);return[0,.25,.5,.75,1].map(t=>{const u=1-t;return[-1.3*t*u*zl-t*t*zl,u*u*zl+1.3*t*u*zl]})}
-  const w=b.w/SC,h=b.h/SC;return[[-w/2,0],[-.3*w,.8*h],[0,h],[.3*w,.8*h],[w/2,0]]};
+  if((-n[0]*st+n[1]*ct)*cp-n[2]*sp<0)poly(f.map(p=>P(...p)),`rgb(${(c[0]+130*Tp)*s|0},${(c[1]-30*Tp)*s|0},${(c[2]-60*Tp)*s|0})`)};
+ const prof=(b,ext)=>{if(fl){const zl=Math.min(b.w/SC,K==='lap'?T:9);return[0,.25,.5,.75,1].map(t=>{const u=1-t;return[-1.3*t*u*zl-t*t*zl,u*u*zl+1.3*t*u*zl]})}
+  const w=b.w/SC,h=b.h/SC,r=[[-w/2,0],[-.3*w,.8*h],[0,h],[.3*w,.8*h],[w/2,0]],d=Math.min(b.p,T);return ext&&K==='butt'?r.concat([[1,0],[1,-d],[-1,-d],[-1,0]]):r};
  const idx=[];for(let i=0;i<beads.length;i+=3)idx.push(i);if(beads.length&&idx[idx.length-1]!==beads.length-1)idx.push(beads.length-1);
  const segs=[];
  for(let n=0;n<idx.length-1;n++){const a=beads[idx[n]],b=beads[idx[n+1]],pa=prof(a),pb=prof(b),xa=(a.x-X0)/6,xb=(b.x-X0)/6;
   for(let j=0;j<pa.length-1;j++){const q=[P(xa,pa[j][0],pa[j][1]),P(xa,pa[j+1][0],pa[j+1][1]),P(xb,pb[j+1][0],pb[j+1][1]),P(xb,pb[j][0],pb[j][1])];
    segs.push([(q[0][2]+q[2][2])/2,q,col(b,fl?.95:1-Math.abs(j-1.5)*.06)])}}
- const cap=b=>{const pts=prof(b);if(fl)pts.push([0,0]);const x=(b.x-X0)/6,q=pts.map(p=>P(x,p[0],p[1]));segs.push([q.reduce((s,p)=>s+p[2],0)/q.length,q,col(b,.92)])};
+ const cap=b=>{const pts=prof(b,1);if(fl)pts.push([0,0]);const x=(b.x-X0)/6,q=pts.map(p=>P(x,p[0],p[1]));segs.push([q.reduce((s,p)=>s+p[2],0)/q.length,q,col(b,.92)])};
  if(beads.length){cap(beads[0]);cap(beads[beads.length-1])}
  segs.sort((a,b)=>b[0]-a[0]);
  const G=[92,100,110];
- if(K==='butt'){box(0,L,-Y1,-1,-T,0,G);box(0,L,1,Y1,-T,0,G)}else box(0,L,-Y1,Y1,-T,0,G);
+ if(K==='butt'){box(-5,L+5,-Y1,-1,-T,0,G);box(-5,L+5,1,Y1,-T,0,G)}else box(-5,L+5,-Y1,Y1,-T,0,G);
  g3.fillStyle='#c9a27a';for(const o of balls){const q=P((o.x-X0)/6,(YB-o.y2)/6,o.r/6);g3.beginPath();g3.arc(q[0],q[1],Math.max(1.2,o.r/6*Z),0,7);g3.fill()}
- const occ=()=>{if(K==='tee')box(0,L,0,T,0,20,[104,112,123]);if(K==='lap')box(0,L,0,Y1,0,T,[104,112,123])},bd=()=>{for(const s of segs)poly(s[1],s[2])};
+ const occ=()=>{if(K==='tee')box(-5,L+5,0,T,0,20,[104,112,123]);if(K==='lap')box(-5,L+5,0,Y1,0,T,[104,112,123])},bd=()=>{for(const s of segs)poly(s[1],s[2])};
  if(fl&&ct<0){bd();occ()}else{occ();bd()}
  if(V[1]>25){g3.fillStyle='#10141a';for(const p of pores){const q=P((p.x-X0)/6,(YB-p.y2)/6,p.y/6);g3.beginPath();g3.arc(q[0],q[1],Math.max(1,p.r/6*Z*1.4),0,7);g3.fill()}
   for(const o of holes){const q=P((o.x-X0)/6,(YB-o.y2)/6,.2);g3.beginPath();g3.arc(q[0],q[1],o.r/6*Z,0,7);g3.fillStyle='#0b0e12';g3.fill();g3.strokeStyle='#ff8a2a';g3.lineWidth=1;g3.stroke()}}
